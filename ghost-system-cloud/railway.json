@@ -1,4 +1,0 @@
-{
-  "build": { "nixpacksPlan": { "phases": { "install": { "cmds": ["npm install"] }, "build": { "cmds": ["npm run build"] } } } },
-  "deploy": { "startCommand": "npm start", "healthcheckPath": "/health" }
-}
