@@ -1,0 +1,6 @@
+import fg from 'fast-glob'; import { sliceForSocial } from '../lib/contentSlicer.js'; import path from 'path'; import fs from 'fs';
+import { bufferCreate } from '../lib/posters/buffer.js'; import { postToX } from '../lib/posters/x.js'; import { notionLog } from '../lib/notionSync.js';
+async function main(){ const docs=await fg('data/products/**/*.md'); for(const doc of docs){ const snippets=sliceForSocial(doc); const out=path.join('data','meta',path.basename(doc).replace('.md','.snippets.json')); fs.writeFileSync(out, JSON.stringify({source:doc, snippets}, null, 2)); console.log('[analyze] Sliced',doc,'->',out);
+  const link=(process.env.DEFAULT_PRODUCT_LINK??'https://gumroad.com'); for(const s of snippets.slice(0,4)){ const text=`${s}\n\n${link}`; await bufferCreate({ text, profile_ids:(process.env.BUFFER_PROFILE_IDS?.split(',')||[]), now:false }); } if(snippets.length) await postToX(`${snippets[0]}\n\n${link}`);
+  const metaFile=path.join('data','meta', path.basename(doc).replace('.md','.json')); if(fs.existsSync(metaFile)){ const meta=JSON.parse(fs.readFileSync(metaFile,'utf-8')); await notionLog({ sku:meta.sku, title:meta.title, platform:process.env.DEFAULT_PLATFORM??'gumroad', price_cents:meta.price_cents, sales:0, revenue:0, cr:0 }); } } }
+main();

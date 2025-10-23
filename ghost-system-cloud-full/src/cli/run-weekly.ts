@@ -1,0 +1,1 @@
+import { execFileSync } from 'child_process'; import { optimizePrices } from '../lib/priceOptimizer.js'; async function weekly(){ execFileSync('npm',['run','forge'],{stdio:'inherit'}); execFileSync('npm',['run','analyze'],{stdio:'inherit'}); await optimizePrices(); } weekly();

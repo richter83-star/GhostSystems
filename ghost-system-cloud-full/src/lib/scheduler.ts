@@ -1,0 +1,1 @@
+import { CronJob } from 'cron'; import { DateTime } from 'luxon'; export function scheduleWeekly(fn:()=>Promise<void>, tz:string){ const job=new CronJob('0 5 * * 1', async()=>{ console.log(`[cron] Weekly run @ ${DateTime.now().setZone(tz).toISO()}`); await fn();}, null, true, tz); job.start(); return job; }
