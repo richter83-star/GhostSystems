@@ -1,0 +1,11 @@
+This cloud package expects you to copy the following files from the Local package (they are identical):
+- src/cli/forge.ts
+- src/cli/analyze.ts
+- src/cli/run-weekly.ts
+- src/cli/sync-analytics.ts
+- src/lib/*.ts (gumroad.ts, lemon.ts, mdToPdf.ts, contentSlicer.ts, tracking.ts, scheduler.ts, splitTest.ts, priceOptimizer.ts, notionSync.ts, metaSeed.ts)
+- src/lib/posters/*.ts
+- src/lib/analytics/*.ts
+- python/** (requirements.txt, product_generator.py, formatter.py, util.py)
+
+If you're using this zip standalone, you can also drop in the same files from the Local zip.

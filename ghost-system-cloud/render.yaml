@@ -1,0 +1,21 @@
+services:
+  - type: worker
+    name: ghost-system-worker
+    env: node
+    plan: starter
+    autoDeploy: true
+    buildCommand: "npm install && npm run build"
+    startCommand: "npm start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+cronJobs:
+  - name: ghost-weekly
+    schedule: "0 13 * * 1" # 05:00 PT (Render uses UTC; 13:00 UTC ~ 05:00 PT)
+    command: "npm run weekly"
+    serviceName: ghost-system-worker
+  - name: ghost-nightly
+    schedule: "30 10 * * *" # 03:30 PT (10:30 UTC)
+    command: "npm run sync"
+    serviceName: ghost-system-worker
