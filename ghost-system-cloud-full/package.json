@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "start": "node --env-file=.env node_modules/tsx/dist/cli.js src/cloud/runner.ts",
+    "start": "node node_modules/tsx/dist/cli.js src/cloud/runner.ts"
     "forge": "tsx src/cli/forge.ts",
     "analyze": "tsx src/cli/analyze.ts",
     "weekly": "tsx src/cli/run-weekly.ts",
