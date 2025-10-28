@@ -1,21 +1,40 @@
 services:
-  - type: worker
-    name: ghost-system-worker
+  - type: web
+    name: ghostsystems
     env: node
-    plan: starter
+    plan: free              # or starter / pro if you upgrade later
+    rootDir: ./             # tells Render to build from repo root
+    buildCommand: npm install
+    startCommand: npm start
     autoDeploy: true
-    buildCommand: "npm install && npm run build"
-    startCommand: "npm start"
     envVars:
       - key: NODE_ENV
         value: production
+      - key: GHOST_MODE
+        value: learning
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GUMROAD_API_KEY
+        sync: false
+      - key: GUMROAD_WEBHOOK_SECRET
+        sync: false
+      - key: LEMONSQUEEZY_API_KEY
+        sync: false
+      - key: LEMONSQUEEZY_STORE_ID
+        sync: false
+      - key: NOTION_API_KEY
+        sync: false
+      - key: NOTION_DB_PRODUCTS_ID
+        sync: false
 
-cronJobs:
-  - name: ghost-weekly
-    schedule: "0 13 * * 1"
-    command: "npm run weekly"
-    serviceName: ghost-system-worker
-  - name: ghost-nightly
-    schedule: "30 10 * * *"
-    command: "npm run sync"
-    serviceName: ghost-system-worker
+  # Optional background cron-runner (comment out if not needed)
+  - type: worker
+    name: ghostsystems-cron
+    env: node
+    rootDir: ./
+    buildCommand: npm install
+    startCommand: node src/cloud/runner.js
+    autoDeploy: true
+
