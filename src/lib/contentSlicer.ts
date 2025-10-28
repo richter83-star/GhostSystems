@@ -1,0 +1,1 @@
+import fs from 'fs'; export function sliceForSocial(p:string){ const r=fs.readFileSync(p,'utf-8'); const lines=r.split(/\r?\n/).filter(Boolean); const out:string[]=[]; const step=Math.max(1,Math.floor(lines.length/10)); for(let i=0;i<lines.length;i+=step) out.push(lines[i].slice(0,220)); return out; }
