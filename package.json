@@ -1,10 +1,10 @@
 {
   "name": "ghost-system-cloud",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "npm install",
+    "build": "npm ci || npm install",
     "start": "npx tsx src/cloud/runner.ts",
     "forge": "tsx src/cli/forge.ts",
     "analyze": "tsx src/cli/analyze.ts",
@@ -12,8 +12,7 @@
     "sync": "tsx src/cli/sync-analytics.ts",
     "py:init": "python -m pip install -r python/requirements.txt",
     "py:gen": "python python/product_generator.py",
-    "py:fmt": "python python/formatter.py",
-    "postinstall": "npm run py:init"
+    "py:fmt": "python python/formatter.py"
   },
   "dependencies": {
     "axios": "^1.7.7",
@@ -31,5 +30,8 @@
   "devDependencies": {
     "tsx": "^4.19.0",
     "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=22.x"
   }
 }
