@@ -1,143 +1,59 @@
-// src/server.ts
-import 'dotenv/config';
+import 'dotenv/config'; // Loads variables from .env
 import express from 'express';
-import http from 'http';
-import { CronJob } from 'cron';
-import { DateTime } from 'luxon';
-import { execFileSync } from 'child_process';
-import crypto from 'crypto';
-import axios from 'axios';
+import { startNexusListener } from '../integrations/nexus/listener';
 
-const TZ = process.env.TIMEZONE ?? 'America/Los_Angeles';
+// Initialize Express
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 10000; // Use 10000, as seen in your logs
 
-/* -------------------------------------------------------
-   SHOPIFY ROUTES
-------------------------------------------------------- */
+async function main() {
+  console.log("=================================");
+  console.log("   GHOST FLEET CONTROLLER     ");
+  console.log("=================================");
 
-// 1️⃣ Basic connection check
-app.get('/api/shopify', (_req, res) => {
-  res.status(200).json({ ok: true, msg: 'FleetController connected to Shopify' });
-});
-
-// 2️⃣ Shopify webhook receiver (for live order events)
-app.post('/api/shopify/webhook', (req, res) => {
-  const hmac = req.get('X-Shopify-Hmac-Sha256');
-  const secret = process.env.SHOPIFY_WEBHOOK_SECRET ?? '';
-  const digest = crypto
-    .createHmac('sha256', secret)
-    .update(JSON.stringify(req.body), 'utf8')
-    .digest('base64');
-
-  if (hmac !== digest) {
-    return res.status(401).json({ error: 'Invalid signature' });
-  }
-
-  console.log('[Shopify webhook event]', req.body);
-  res.status(200).json({ ok: true });
-});
-
-// 3️⃣ Shopify sync (Fleet pulls data automatically)
-app.get('/api/shopify/sync', async (_req, res) => {
-  const SHOPIFY_STORE_URL = process.env.SHOPIFY_STORE_URL!;
-  const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN!;
-
-  if (!SHOPIFY_STORE_URL || !SHOPIFY_ACCESS_TOKEN) {
-    return res.status(400).json({ ok: false, error: 'Missing Shopify credentials' });
-  }
-
-  try {
-    console.log('[FleetController] Syncing Shopify data...');
-
-    // --- Products ---
-    const prod = await axios.get(
-      `${SHOPIFY_STORE_URL}/admin/api/2025-01/products.json`,
-      {
-        headers: {
-          'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    const products = prod.data.products ?? [];
-    console.log(`✅ Synced ${products.length} products`);
-
-    // --- Orders ---
-    const ord = await axios.get(
-      `${SHOPIFY_STORE_URL}/admin/api/2025-01/orders.json?status=any`,
-      {
-        headers: {
-          'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    const orders = ord.data.orders ?? [];
-    console.log(`✅ Synced ${orders.length} orders`);
-
-    // --- Customers ---
-    const cust = await axios.get(
-      `${SHOPIFY_STORE_URL}/admin/api/2025-01/customers.json`,
-      {
-        headers: {
-          'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    const customers = cust.data.customers ?? [];
-    console.log(`✅ Synced ${customers.length} customers`);
-
-    res.json({
-      ok: true,
-      stats: {
-        products: products.length,
-        orders: orders.length,
-        customers: customers.length,
-      },
+  // ---------------------------------------------------------
+  // 1. Start Web Server
+  // This is what Render is checking. 
+  // The log [FleetController] live on port 10000 comes from here.
+  // ---------------------------------------------------------
+  app.get('/', (req, res) => {
+    res.status(200).json({
+      system: 'Ghost Fleet Controller',
+      status: 'Online',
+      timestamp: new Date().toISOString()
     });
-  } catch (err: any) {
-    console.error('❌ Shopify sync failed:', err.response?.data || err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
+  });
 
-/* -------------------------------------------------------
-   CRON JOBS
-------------------------------------------------------- */
-function job(spec: string, name: string, cmd: string, args: string[]) {
-  return new CronJob(
-    spec,
-    async () => {
-      const iso = DateTime.now().setZone(TZ).toISO();
-      console.log(`[cron:${name}] firing @ ${iso}`);
-      try {
-        execFileSync(cmd, args, { stdio: 'inherit' });
-      } catch (e) {
-        console.error(`[cron:${name}] error`, e);
-      }
-    },
-    null,
-    true,
-    TZ
-  );
+  app.listen(PORT, () => {
+    // This is the log line you are seeing
+    console.log(`[FleetController] live on port ${PORT}`); 
+  });
+
+  // ---------------------------------------------------------
+  // 2. THIS IS THE MISSING PIECE: Initialize The "Ear" 
+  // We are adding the Nexus Listener to THIS file.
+  // ---------------------------------------------------------
+  try {
+    console.log("[INIT] 📡 connecting to Nexus Command...");
+    startNexusListener(); // <--- THIS IS THE FIX
+  } catch (error) {
+    console.error("[ERROR] Failed to start Nexus listener:", error);
+  }
+
+  console.log("[SYSTEM] 👻 Ghost is fully operational and waiting for jobs.");
 }
 
-// existing cron jobs
-job('0 5 * * 1', 'weekly', 'npm', ['run', 'weekly']);
-job('30 3 * * *', 'nightly', 'npm', ['run', 'sync']);
+// Global Error Handling
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] Uncaught Exception:', error);
+});
 
-// optional: automatic Shopify sync every 2 hours
-job('0 */2 * * *', 'shopify-sync', 'curl', [
-  '-s',
-  `${process.env.RENDER_EXTERNAL_URL ?? 'https://ghostsystems.onrender.com'}/api/shopify/sync`,
-]);
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
-/* -------------------------------------------------------
-   SERVER
-------------------------------------------------------- */
-const port = process.env.PORT || 10000;
-http.createServer(app).listen(port, () => {
-  console.log(`[FleetController] live on port ${port}`);
+// Start the Engine
+main().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
 });
