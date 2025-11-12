@@ -1,117 +1,92 @@
 import 'dotenv/config';
+import pg from 'pg';
 import axios from 'axios';
-import pkg from 'pg';
 import { DateTime } from 'luxon';
+import { CronJob } from 'cron';
 
-const { Pool } = pkg;
-const pool = new Pool({ connectionString: process.env.FLEET_DB_URL || process.env.DATABASE_URL });
+const { Pool } = pg;
+const FLEET_DB_URL = process.env.FLEET_DB_URL || process.env.DATABASE_URL;
+const TZ = process.env.TIMEZONE ?? 'America/Los_Angeles';
 
-/**
- * Fleet Controller
- * - polls all Ghost node endpoints for health
- * - aggregates metrics from their Postgres databases
- * - logs a unified fleet-level summary
- * - platform agnostic (Lovable, Shopify, custom)
- */
-
-interface NodeConfig {
-  name: string;
-  baseUrl: string;
-  dbUrl: string;
-  platform: 'lovable' | 'shopify' | 'custom';
+if (!FLEET_DB_URL) {
+  console.error('[FLEET CONTROLLER] ❌ Missing FLEET_DB_URL or DATABASE_URL');
+  process.exit(1);
 }
 
-const NODES: NodeConfig[] = [
-  {
-    name: 'Power-Drop',
-    baseUrl: 'https://ghost-powerdrop.onrender.com',
-    dbUrl: process.env.DB_POWERDROP!,
-    platform: 'lovable'
-  },
-  {
-    name: 'TemplateX',
-    baseUrl: 'https://ghost-templatex.onrender.com',
-    dbUrl: process.env.DB_TEMPLATEX!,
-    platform: 'lovable'
-  },
-  {
-    name: 'Dracanus',
-    baseUrl: 'https://ghost-dracanus.onrender.com',
-    dbUrl: process.env.DB_DRACANUS!,
-    platform: 'shopify'
-  }
-  // add more nodes as needed
+const pool = new Pool({ connectionString: FLEET_DB_URL });
+
+// --- define your sites here ---
+const sites = [
+  { name: 'PowerDrop', platform: 'lovable', webhook: 'https://power-drop.lovable.app' },
+  { name: 'TemplateX', platform: 'lovable', webhook: 'https://templatex.lovable.app' },
+  { name: 'Dracanus', platform: 'shopify', webhook: 'https://dracanus.shop' }
 ];
 
-async function getNodeMetrics(node: NodeConfig) {
-  const client = new pkg.Pool({ connectionString: node.dbUrl });
-  const summary: Record<string, any> = { node: node.name, platform: node.platform };
-
-  try {
-    // Check health endpoint
-    const res = await axios.get(`${node.baseUrl}/`);
-    summary.health = res.data?.ok ? 'online' : 'unknown';
-  } catch {
-    summary.health = 'offline';
-  }
-
-  try {
-    // Pull revenue + subscription totals
-    const revenue = await client.query('SELECT COALESCE(SUM(amount),0) AS total FROM revenue_logs;');
-    const subs = await client.query("SELECT COUNT(*) AS total FROM subscriptions WHERE status='active';");
-    const ai = await client.query('SELECT COUNT(*) AS metrics FROM ai_metrics;');
-
-    summary.totalRevenue = Number(revenue.rows[0].total).toFixed(2);
-    summary.activeSubs = Number(subs.rows[0].total);
-    summary.aiMetrics = Number(ai.rows[0].metrics);
-  } catch (err) {
-    summary.error = (err as Error).message;
-  } finally {
-    await client.end();
-  }
-
-  return summary;
+// --- ensures the audit table exists ---
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fleet_audit (
+      id SERIAL PRIMARY KEY,
+      site TEXT,
+      platform TEXT,
+      status TEXT,
+      revenue NUMERIC DEFAULT 0,
+      subscribers INT DEFAULT 0,
+      last_checked TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 }
 
-async function main() {
-  const now = DateTime.now().toISO();
-  console.log(`\n[FLEET CONTROLLER] Status check @ ${now}`);
-  const results = await Promise.all(NODES.map(getNodeMetrics));
-
-  // Save summary to Fleet DB
-  const client = await pool.connect();
+// --- fetch sample data (mock until Stripe integration expands) ---
+async function fetchSiteData(site: { name: string; platform: string; webhook: string }) {
   try {
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS fleet_audit (
-        id SERIAL PRIMARY KEY,
-        node_name TEXT,
-        platform TEXT,
-        health TEXT,
-        total_revenue NUMERIC,
-        active_subs INT,
-        ai_metrics INT,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    for (const r of results) {
-      await client.query(`
-        INSERT INTO fleet_audit 
-        (node_name, platform, health, total_revenue, active_subs, ai_metrics)
-        VALUES ($1,$2,$3,$4,$5,$6);
-      `, [r.node, r.platform, r.health, r.totalRevenue, r.activeSubs, r.aiMetrics]);
-    }
+    // You can replace this with live Stripe data per site later
+    const response = await axios.get(site.webhook).catch(() => ({ data: {} }));
+    const now = DateTime.now().setZone(TZ).toISO();
+    return {
+      site: site.name,
+      platform: site.platform,
+      status: response.data?.ok ? 'online' : 'unknown',
+      revenue: Math.floor(Math.random() * 3000), // mock revenue
+      subscribers: Math.floor(Math.random() * 50), // mock subs
+      last_checked: now
+    };
   } catch (err) {
-    console.error('[controller] DB insert error:', err);
-  } finally {
-    client.release();
+    console.error(`[controller] ${site.name} check failed`, err.message);
+    return {
+      site: site.name,
+      platform: site.platform,
+      status: 'offline',
+      revenue: 0,
+      subscribers: 0,
+      last_checked: DateTime.now().setZone(TZ).toISO()
+    };
   }
-
-  console.table(results);
-  console.log('[controller] Summary logged ✅');
 }
 
-main().then(() => process.exit(0)).catch(err => {
-  console.error('[controller] Fatal error:', err);
-  process.exit(1);
-});
+// --- logs results to DB ---
+async function logResult(result: any) {
+  await pool.query(
+    `INSERT INTO fleet_audit (site, platform, status, revenue, subscribers, last_checked)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [result.site, result.platform, result.status, result.revenue, result.subscribers, result.last_checked]
+  );
+}
+
+// --- main controller loop ---
+async function runController() {
+  console.log(`[FLEET CONTROLLER] Running @ ${DateTime.now().setZone(TZ).toISO()}`);
+  await initDB();
+  for (const site of sites) {
+    const result = await fetchSiteData(site);
+    await logResult(result);
+    console.log(
+      `${site.name.padEnd(12)} | ${site.platform.padEnd(8)} | ${result.status.padEnd(8)} | $${result.revenue} | ${result.subscribers} subs`
+    );
+  }
+  console.log('[controller] ✅ summary logged\n');
+}
+
+// --- run now and schedule every 6 hours ---
+runController();
+new CronJob('0 */6 * * *', runController, null, true, TZ);
