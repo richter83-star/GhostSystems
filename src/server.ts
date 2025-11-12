@@ -1,6 +1,10 @@
 import 'dotenv/config'; // Loads variables from .env
 import express from 'express';
-import { startNexusListener } from '../integrations/nexus/listener';
+// --- THIS IS THE FIX ---
+// We changed '../integrations/nexus/listener' to './integrations/nexus/listener.js'
+// 1. './' means "start in the current folder (src)"
+// 2. '.js' is required for Node.js ES Modules, even in TypeScript.
+import { startNexusListener } from './integrations/nexus/listener.js';
 
 // Initialize Express
 const app = express();
