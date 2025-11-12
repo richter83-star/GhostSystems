@@ -2,9 +2,11 @@ import { initializeApp } from "firebase/app";
 import { 
   getFirestore, collection, query, where, onSnapshot, updateDoc, doc 
 } from "firebase/firestore";
-import { spawn } from "child_process"; 
+import { spawn } from "child_process";
+import path from "path";
 
-// 1. Config (Set these in Render Environment Variables)
+// 1. Firebase Config (Loaded from Render Environment Variables)
+// You MUST set these in your Render Dashboard under "Environment"
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -37,54 +39,64 @@ export function startNexusListener() {
 
         try {
           // -------------------------------------------------------
-          // EXECUTION LOGIC
-          // This is where we trigger your existing Python or TS logic
+          // TRIGGER YOUR PYTHON GENERATOR
           // -------------------------------------------------------
+          console.log(`[GHOST] Spawning Python Generator for: ${job.topic}`);
           
-          // OPTION A: Trigger your Python Generator
-          // This runs: python python/product_generator.py --topic "..."
-          console.log("...Spawning Python Generator...");
+          // This runs the equivalent of: python python/product_generator.py "topic" "niche"
+          // Ensure your python script is set up to read sys.argv[1] and sys.argv[2]
+          const scriptPath = path.join(process.cwd(), 'python', 'product_generator.py');
           
-          /* Uncomment this block to actually run your python script
-             Ensure your python script accepts command line args!
-          */
-          // await runPythonScript(job.topic, job.niche);
+          const pythonProcess = spawn('python', [
+             scriptPath, 
+             job.topic, 
+             job.niche || "general" 
+          ]);
 
-          // -------------------------------------------------------
+          // Capture Output from Python
+          let scriptOutput = "";
           
-          // Simulate success for now so you see it in the Dashboard
-          await new Promise(r => setTimeout(r, 2000)); 
-
-          // Report success back to Dashboard
-          await updateDoc(doc(db, "jobs", jobId), { 
-            status: "draft",
-            imageUrl: "https://placehold.co/600x600/101010/FFF?text=" + job.topic.replace(/ /g, "+")
+          pythonProcess.stdout.on('data', (data) => {
+            const msg = data.toString();
+            console.log(`[PY]: ${msg}`);
+            scriptOutput += msg;
           });
-          
-          console.log(`[JOB COMPLETE] Draft sent to Nexus.`);
 
-        } catch (error) {
+          pythonProcess.stderr.on('data', (data) => {
+            console.error(`[PY ERR]: ${data}`);
+          });
+
+          // When Python finishes
+          pythonProcess.on('close', async (code) => {
+            if (code === 0) {
+               // Success!
+               // We assume your python script prints the final Image URL or Result 
+               // as the last line, or we just mock it for now.
+               
+               await updateDoc(doc(db, "jobs", jobId), { 
+                 status: "draft",
+                 // If your python script outputs a URL, parse it here.
+                 // For now, we generate a placeholder so the UI looks good.
+                 imageUrl: "https://placehold.co/600x600/101010/FFF?text=" + job.topic.replace(/ /g, "+"),
+                 logs: scriptOutput
+               });
+               console.log(`[JOB COMPLETE] Draft sent to Nexus.`);
+            } else {
+               throw new Error(`Python script exited with code ${code}`);
+            }
+          });
+
+        } catch (error: any) {
           console.error("Nexus Job Failed:", error);
-          await updateDoc(doc(db, "jobs", jobId), { status: "failed" });
+          await updateDoc(doc(db, "jobs", jobId), { 
+            status: "failed",
+            error: error.message 
+          });
         }
       }
     });
   });
 }
 
-// Helper to run your Python scripts if needed
-function runPythonScript(topic: string, niche: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Adjust arguments to match what your python script expects
-    const pythonProcess = spawn('python', ['python/product_generator.py', topic, niche]);
 
-    pythonProcess.stdout.on('data', (data) => console.log(`[PYTHON]: ${data}`));
-    pythonProcess.stderr.on('data', (data) => console.error(`[PYTHON ERR]: ${data}`));
-    
-    pythonProcess.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Python script exited with code ${code}`));
-    });
-  });
-}
 
