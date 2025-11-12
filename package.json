@@ -10,6 +10,7 @@
     "analyze": "tsx src/cli/analyze.ts",
     "weekly": "tsx src/cli/run-weekly.ts",
     "sync": "tsx src/cli/sync-analytics.ts",
+    "govern": "tsx src/cli/auto-govern.ts",
     "py:init": "python -m pip install -r python/requirements.txt",
     "py:gen": "python python/product_generator.py",
     "py:fmt": "python python/formatter.py"
