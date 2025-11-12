@@ -35,8 +35,12 @@ function job(spec: string, name: string, cmd: string, args: string[]) {
   );
 }
 
+// Weekly analysis + sync jobs
 job('0 5 * * 1', 'weekly', 'npm', ['run', 'weekly']);
 job('30 3 * * *', 'nightly', 'npm', ['run', 'sync']);
+
+// Hourly governor automation
+job('0 * * * *', 'govern', 'npm', ['run', 'govern']);
 
 /* ------------------  STRIPE WEBHOOK ------------------ */
 app.post('/api/stripe/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
@@ -129,6 +133,4 @@ app.get('/', (_, res) => {
 
 const port = process.env.PORT || 8080;
 const server = http.createServer(app);
-
 server.listen(port, () => console.log(`[runner] up on ${port}`));
-
