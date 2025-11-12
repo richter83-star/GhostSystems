@@ -35,12 +35,15 @@ function job(spec: string, name: string, cmd: string, args: string[]) {
   );
 }
 
-// Weekly analysis + sync jobs
+// Weekly + nightly
 job('0 5 * * 1', 'weekly', 'npm', ['run', 'weekly']);
 job('30 3 * * *', 'nightly', 'npm', ['run', 'sync']);
 
-// Hourly governor automation
+// Hourly Fleet governor
 job('0 * * * *', 'govern', 'npm', ['run', 'govern']);
+
+// Every 6 hours — Abacus sync
+job('0 */6 * * *', 'abacus-sync', 'npm', ['run', 'abacus:sync']);
 
 /* ------------------  STRIPE WEBHOOK ------------------ */
 app.post('/api/stripe/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
