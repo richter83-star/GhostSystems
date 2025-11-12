@@ -1,6 +1,6 @@
 {
   "name": "ghost-system-cloud",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "private": true,
   "scripts": {
@@ -22,18 +22,19 @@
     "axios": "^1.7.7",
     "cron": "^3.1.7",
     "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "body-parser": "^1.20.3",
     "fast-glob": "^3.3.2",
+    "firebase": "^11.0.2",
     "luxon": "^3.5.0",
     "markdown-it": "^14.1.0",
     "nanoid": "^5.0.7",
+    "pg": "^8.13.0",
     "puppeteer": "^22.12.1",
     "sqlite3": "^5.1.7",
-    "twitter-api-v2": "^1.17.2",
-    "zod": "^3.23.8",
-    "express": "^4.21.1",
-    "body-parser": "^1.20.3",
     "stripe": "^16.0.0",
-    "pg": "^8.13.0"
+    "twitter-api-v2": "^1.17.2",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "tsx": "^4.19.0",
@@ -43,3 +44,5 @@
     "node": ">=22.x"
   }
 }
+
+
