@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "npm ci || npm install && python -m pip install -r python/requirements.txt",
+    "build": "npm install && python -m pip install --upgrade pip && python -m pip install --no-cache-dir -r python/requirements.txt",
     "start": "npx tsx src/cloud/runner.ts",
     "forge": "tsx src/cli/forge.ts",
     "analyze": "tsx src/cli/analyze.ts",
