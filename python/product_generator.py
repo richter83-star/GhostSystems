@@ -9,6 +9,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 import threading
+from flask import Flask # <-- NEW IMPORT
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -270,11 +271,11 @@ def process_job(job_doc):
         job_ref.update({"status": "failed"})
 
 # ==============================================================================
-# FIRESTORE LISTENER
+# FIRESTORE LISTENER (THREAD)
 # ==============================================================================
-# This is the main loop that runs forever.
-def main():
-    logging.info("Initializing Firestore listener...")
+# This function will run in a background thread
+def start_listener():
+    logging.info("Initializing Firestore listener in background thread...")
     
     # We listen to *all* jobs from *all* users with status "pending"
     # This requires a Composite Index in Firebase. The log will tell you the URL to create it.
@@ -307,7 +308,30 @@ def main():
         logging.critical(f"Listener query failed: {e}")
         logging.critical("This likely requires a new Firebase Composite Index.")
         logging.critical("Please check the error log for a URL to create the index.")
-        sys.exit(1)
+        # We don't exit(1) here, as the main thread is the Flask app
+
+# ==============================================================================
+# FLASK WEB SERVER (MAIN THREAD)
+# ==============================================================================
+# This is what Render will see as the "Web Service"
+app = Flask(__name__)
+
+@app.route('/')
+def hello_world():
+    # This provides a simple health check page
+    logging.info("Health check endpoint '/' was pinged.")
+    return 'Ghost Listener is active and listening to Firebase in the background.', 200
+
+def main():
+    # Start the Firestore listener in a separate, non-daemon thread
+    listener_thread = threading.Thread(target=start_listener, name="FirestoreListener")
+    listener_thread.start()
+    
+    # Start the Flask web server on the main thread
+    # Render provides the PORT environment variable
+    port = int(os.environ.get("PORT", 10000))
+    logging.info(f"Starting Flask health check server on port {port}...")
+    app.run(host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
     main()
