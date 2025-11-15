@@ -9,7 +9,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 import threading
-from flask import Flask # <-- NEW IMPORT
+# from flask import Flask # <-- REMOVED
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -309,29 +309,27 @@ def start_listener():
         logging.critical("This likely requires a new Firebase Composite Index.")
         logging.critical("Please check the error log for a URL to create the index.")
         # We don't exit(1) here, as the main thread is the Flask app
+        sys.exit(1) # We can exit now, background worker will restart
 
 # ==============================================================================
 # FLASK WEB SERVER (MAIN THREAD)
 # ==============================================================================
 # This is what Render will see as the "Web Service"
-app = Flask(__name__)
+# app = Flask(__name__) <-- REMOVED
 
-@app.route('/')
-def hello_world():
+# @app.route('/') <-- REMOVED
+# def hello_world(): <-- REMOVED
     # This provides a simple health check page
-    logging.info("Health check endpoint '/' was pinged.")
-    return 'Ghost Listener is active and listening to Firebase in the background.', 200
+#    logging.info("Health check endpoint '/' was pinged.") <-- REMOVED
+#    return 'Ghost Listener is active and listening to Firebase in the background.', 200 <-- REMOVED
 
 def main():
     # Start the Firestore listener in a separate, non-daemon thread
     listener_thread = threading.Thread(target=start_listener, name="FirestoreListener")
     listener_thread.start()
     
-    # Start the Flask web server on the main thread
-    # Render provides the PORT environment variable
-    port = int(os.environ.get("PORT", 10000))
-    logging.info(f"Starting Flask health check server on port {port}...")
-    app.run(host='0.0.0.0', port=port)
+    # Keep the main thread alive so the listener thread can run
+    listener_thread.join()
 
 if __name__ == "__main__":
     main()
