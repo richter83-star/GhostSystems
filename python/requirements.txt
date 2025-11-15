@@ -4,3 +4,4 @@ python-slugify>=8.0.4
 ShopifyAPI==6.0.1
 firebase-admin
 requests
+google-cloud-firestore
