@@ -1,1 +1,6 @@
-openai>=1.46.0markdownify>=0.12.1python-slugify>=8.0.4ShopifyAPI==6.0.1firebase-adminrequests
+openai>=1.46.0
+markdownify>=0.12.1
+python-slugify>=8.0.4
+ShopiPyAPI==6.0.1
+firebase-admin
+requests
